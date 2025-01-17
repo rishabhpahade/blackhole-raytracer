@@ -1,0 +1,18 @@
+=====================================================
+      SCHWARZSCHILD BLACK-HOLE RAY TRACER METRICS    
+=====================================================
+Image Resolution:          1280 x 720 (921600 rays)
+Render Execution Time:     21.290 seconds
+Ray Throughput:            43288 rays/sec
+-----------------------------------------------------
+RAY CLASSIFICATION BREAKDOWN:
+  * Captured (Shadow):     112744 (12.23%)
+  * Escaped (Lensed):      99966 (10.85%)
+  * Hit Accretion Disk:    708890 (76.92%)
+  * Max Steps Reached:     0
+  * Numerical Failures:    0
+-----------------------------------------------------
+INTEGRATION DEPTH STATISTICS:
+  * Average Steps per Ray: 569.5
+  * Maximum Steps Observed:1878
+=====================================================
