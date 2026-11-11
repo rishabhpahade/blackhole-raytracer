@@ -44,6 +44,7 @@ public:
     int steps{0};
     double closestApproach{std::numeric_limits<double>::infinity()};
     double diskHitRadius{0.0};
+    double redshift{1.0};                     // Observed/emitted frequency ratio g at a disk hit
     Vector3 diskHitPoint{0.0, 0.0, 0.0};
     Vector3 color{0.0, 0.0, 0.0};             // Linear RGB [0..1]
 
@@ -68,6 +69,7 @@ public:
         steps = 0;
         closestApproach = origin.magnitude();
         diskHitRadius = 0.0;
+        redshift = 1.0;
         diskHitPoint = {0.0, 0.0, 0.0};
         color = {0.0, 0.0, 0.0};
     }

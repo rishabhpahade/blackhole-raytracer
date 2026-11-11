@@ -58,6 +58,50 @@ double GeodesicIntegrator::computeAdaptiveStepSize(double r) const noexcept {
     return std::clamp(h, minStepSize, maxStepSize);
 }
 
+double GeodesicIntegrator::computeRedshiftFactor(const Vector3& hitPos, const Vector3& photonDir) const noexcept {
+    const double M = blackHole.mass;
+    const Vector3 rel = hitPos - blackHole.position;
+    const double r = rel.magnitude();
+
+    if (r <= 0.0) {
+        return 1.0;
+    }
+
+    const double twoMR = 2.0 * M / r;
+    if (twoMR >= 1.0) {
+        // Inside the horizon: no circular orbits, nothing is emitted.
+        return 1.0;
+    }
+
+    // Orbital speed of a circular geodesic as measured by a local static
+    // observer: beta = sqrt(M/r) / sqrt(1 - 2M/r).
+    const double beta = std::sqrt(M / r) / std::sqrt(1.0 - twoMR);
+    if (!(beta < 1.0)) {
+        return 1.0;
+    }
+    const double gamma = 1.0 / std::sqrt(1.0 - beta * beta);
+
+    // Prograde azimuthal direction in the equatorial plane.
+    const Vector3 phiHat = Vector3{-rel.y, rel.x, 0.0}.normalized();
+
+    // The traced direction runs camera -> disk, so the photon travels toward
+    // the observer along -photonDir.
+    const Vector3 toObserver = (-photonDir).normalized();
+
+    const double dopplerDenominator = 1.0 - beta * phiHat.dot(toObserver);
+    if (!(dopplerDenominator > 0.0)) {
+        return 1.0;
+    }
+
+    const double gravitational = std::sqrt(1.0 - twoMR);
+    const double g = gravitational / (gamma * dopplerDenominator);
+
+    if (!std::isfinite(g) || g <= 0.0) {
+        return 1.0;
+    }
+    return g;
+}
+
 void GeodesicIntegrator::integrateRay(Ray& ray) const noexcept {
     State6D state{ray.position, ray.velocity};
     ray.closestApproach = (state.pos - blackHole.position).magnitude();
@@ -99,7 +143,10 @@ void GeodesicIntegrator::integrateRay(Ray& ray) const noexcept {
                 ray.diskHitPoint = hitPoint;
                 ray.diskHitRadius = hitRadius;
                 const double phi = std::atan2(hitPoint.y, hitPoint.x);
-                ray.color = disk.computeColor(hitRadius, phi);
+                ray.redshift = disk.enableDopplerBeaming
+                    ? computeRedshiftFactor(hitPoint, nextState.vel)
+                    : 1.0;
+                ray.color = disk.computeColor(hitRadius, phi, ray.redshift);
                 ray.position = hitPoint;
                 ray.velocity = nextState.vel;
                 ray.steps = step;

@@ -62,6 +62,26 @@ public:
     [[nodiscard]] double computeAdaptiveStepSize(double r) const noexcept;
 
     /**
+     * @brief Total frequency shift g = nu_observed / nu_emitted for a photon
+     *        emitted by matter on a circular Keplerian orbit in the disk.
+     *
+     * Combines gravitational redshift with the special-relativistic Doppler
+     * shift of the orbiting emitter:
+     *
+     *     g = sqrt(1 - 2M/r) / ( gamma * (1 - beta . d) )
+     *
+     * with beta the orbital speed measured by a local static observer,
+     * gamma = 1/sqrt(1 - beta^2) and d the photon's direction of travel
+     * (toward the observer) as seen in that frame. For a radially outgoing
+     * photon (beta . d = 0) this reduces to the standard g = sqrt(1 - 3M/r).
+     *
+     * @param hitPos     Emission point on the disk (equatorial plane)
+     * @param photonDir  Traced propagation direction at the hit (camera -> disk)
+     * @return g > 0; approaching matter gives g > 1, receding matter g < 1
+     */
+    [[nodiscard]] double computeRedshiftFactor(const Vector3& hitPos, const Vector3& photonDir) const noexcept;
+
+    /**
      * @brief Integrates a single light ray until termination condition is met.
      * @param ray Ray object to evolve and populate with final state and metrics.
      */
