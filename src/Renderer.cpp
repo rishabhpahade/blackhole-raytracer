@@ -94,6 +94,22 @@ Vector3 Renderer::sampleBackground(const Vector3& dir) const noexcept {
     return bg;
 }
 
+/**
+ * @brief Radical-inverse (Halton) sequence, used for sub-pixel jitter.
+ *
+ * The previous pattern repeated every four samples, so samplesPerPixel > 4
+ * produced no extra coverage. A low-discrepancy sequence keeps improving.
+ */
+static double haltonSequence(int index, int base) noexcept {
+    double f = 1.0, result = 0.0;
+    while (index > 0) {
+        f /= static_cast<double>(base);
+        result += f * static_cast<double>(index % base);
+        index /= base;
+    }
+    return result;
+}
+
 void Renderer::render(std::vector<float>& outLinearBuffer) {
     const int w = camera.imageWidth;
     const int h = camera.imageHeight;
@@ -122,8 +138,8 @@ void Renderer::render(std::vector<float>& outLinearBuffer) {
                 double offsetX = 0.0;
                 double offsetY = 0.0;
                 if (spp > 1) {
-                    offsetX = ((s % 2) - 0.5) * 0.5;
-                    offsetY = ((s / 2) - 0.5) * 0.5;
+                    offsetX = haltonSequence(s + 1, 2) - 0.5;
+                    offsetY = haltonSequence(s + 1, 3) - 0.5;
                 }
 
                 Ray ray = camera.generateRay(x + offsetX, y + offsetY);
@@ -207,17 +223,28 @@ std::vector<unsigned char> Renderer::convertTo8BitSRGB(
     std::vector<unsigned char> byteBuffer(width * height * 3);
 
     for (size_t i = 0; i < linearBuffer.size(); ++i) {
-        float val = linearBuffer[i] * static_cast<float>(exp);
+        double val = static_cast<double>(linearBuffer[i]) * exp;
+
+        // Guard against NaN / Inf reaching the tone curve. A NaN cast straight
+        // to unsigned char is undefined behaviour, and a single bad pixel can
+        // otherwise poison the whole image.
+        if (!std::isfinite(val)) {
+            val = 0.0;
+        }
+        val = std::max(0.0, val);
 
         if (applyToneMap) {
-            // Extended Reinhard Tone Mapping: L_d = (L * (1 + L / L_white^2)) / (1 + L)
-            const float lWhiteSq = 16.0f;
-            val = (val * (1.0f + val / lWhiteSq)) / (1.0f + val);
+            // ACES filmic curve (Narkowicz fit): keeps a shoulder and roll-off
+            // near white so the disk's temperature gradient stays visible
+            // instead of clipping to flat cream.
+            const double a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+            val = (val * (a * val + b)) / (val * (c * val + d) + e);
+            val = std::clamp(val, 0.0, 1.0);
         }
 
         // Gamma correction to sRGB (gamma ≈ 2.2)
-        val = std::pow(std::max(0.0f, val), 1.0f / 2.2f);
-        val = std::clamp(val * 255.0f + 0.5f, 0.0f, 255.0f);
+        val = std::pow(val, 1.0 / 2.2);
+        val = std::clamp(val * 255.0 + 0.5, 0.0, 255.0);
 
         byteBuffer[i] = static_cast<unsigned char>(val);
     }

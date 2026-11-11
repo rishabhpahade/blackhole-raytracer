@@ -17,7 +17,7 @@ public:
 
     double initialStepSize{0.06};
     double minStepSize{1e-5};
-    double maxStepSize{0.3};
+    double maxStepSize{2.0};
     double escapeRadius{60.0};
     int maxSteps{15000};
     bool testAccretionDisk{true};

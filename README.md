@@ -84,12 +84,12 @@ blackhole_raytracer/
 cd blackhole_raytracer
 
 # 1. Build the main simulation executable
-g++ -std=c++17 -O3 -ffast-math -fopenmp -Iinclude -I. \
+g++ -std=c++17 -O3 -fno-math-errno -fopenmp -Iinclude -I. \
     src/Camera.cpp src/AccretionDisk.cpp src/GeodesicIntegrator.cpp src/Renderer.cpp src/main.cpp \
     -o blackhole_raytracer.exe
 
 # 2. Build the scientific validation test suite
-g++ -std=c++17 -O3 -ffast-math -fopenmp -Iinclude -I. \
+g++ -std=c++17 -O3 -fno-math-errno -fopenmp -Iinclude -I. \
     src/Camera.cpp src/AccretionDisk.cpp src/GeodesicIntegrator.cpp src/Renderer.cpp tests/validation_tests.cpp \
     -o validation_tests.exe
 ```
@@ -107,12 +107,25 @@ cmake --build . --config Release
 ## 4. Running the Simulation
 
 ```bash
-# Run scientific validation tests
+# Run scientific validation tests (19 assertions)
 ./validation_tests.exe
 
-# Run high-resolution renderer (default 1280x720)
-./blackhole_raytracer.exe 1280 720 1
+# Run the renderer: <width> <height> <samples-per-pixel>
+# Defaults are 1280x720 at 2 samples per pixel.
+./blackhole_raytracer.exe 1280 720 2
 ```
+
+### Camera & Exposure
+
+The disk lies in the `z = 0` plane, so the camera's `|z|` is its height above the
+disk and `|(x, y)|` is its in-plane distance. The default view sits 15° above the
+plane at 56M, with `+z` as the image's up axis — shallow enough that the far side
+of the disk is lensed up over the shadow. Set `inclinationDegrees`,
+`orbitRadius`, `fov` and `renderer.exposure` in `src/main.cpp` to reframe.
+
+Colour conversion uses the ACES filmic curve. Its shoulder keeps the disk's
+temperature gradient visible instead of clipping the whole disk to flat white;
+`exposure` is the knob to tune brightness against that curve.
 
 ### Generated Deliverables (`output/`)
 
@@ -128,14 +141,18 @@ cmake --build . --config Release
 
 ## 5. Numerical Validation Results
 
+All 19 assertions in `tests/validation_tests.cpp` pass. Numbers below are from
+the test run itself, not from an earlier revision.
+
 | Test Case | Theoretical Value | Simulated Value | Status |
 |---|---|---|---|
 | **Horizon Capture Radius** | $r \le 2.000 M$ | $r \le 2.002 M$ | **PASS** |
-| **Critical Impact Parameter** | $b_c = 3\sqrt{3}M \approx 5.19615 M$ | $5.146M$ (Captured), $5.246M$ (Escaped) | **PASS** |
-| **Weak-Field Deflection ($b = 25M$)** | $\alpha = 0.16000\text{ rad}$ | $\alpha = 0.16248\text{ rad}$ ($<1.6\%$ error) | **PASS** |
-| **Weak-Field Deflection ($b = 50M$)** | $\alpha = 0.08000\text{ rad}$ | $\alpha = 0.08064\text{ rad}$ ($<0.8\%$ error) | **PASS** |
+| **Critical Impact Parameter (bisection)** | $b_c = 3\sqrt{3}M = 5.196152 M$ | $b_c = 5.196135 M$ (relative error $3.4\times10^{-6}$) | **PASS** |
+| **Weak-Field Deflection ($b = 50M$)** | $\alpha = 0.084712\text{ rad}$ | $0.085081\text{ rad}$ ($0.44\%$ error) | **PASS** |
+| **Weak-Field Deflection ($b = 100M$)** | $\alpha = 0.041178\text{ rad}$ | $0.041209\text{ rad}$ ($0.08\%$ error) | **PASS** |
+| **Weak-Field Deflection ($b = 150M$)** | $\alpha = 0.027190\text{ rad}$ | $0.027163\text{ rad}$ ($0.10\%$ error) | **PASS** |
 | **Spacetime Reflection Symmetry** | $\Delta \alpha = 0$ | $\Delta \alpha < 10^{-10}\text{ rad}$ | **PASS** |
-| **RK4 Step-Size Convergence** | $\mathcal{O}(h^4)$ error reduction | Error halving monotonically confirmed | **PASS** |
+| **RK4 Step-Size Convergence** | $\mathcal{O}(h^4)$, order $\approx 4$ | observed order $3.98$ and $3.55$ | **PASS** |
 
 ---
 
@@ -144,4 +161,6 @@ cmake --build . --config Release
 1. **Near-Singularity Proximity**: When $r \le 2M(1 + \epsilon)$, the ray is immediately classified as `Captured` before reaching $r=0$.
 2. **Division by Zero Protection**: All vector normalization, scalar divisions, and acceleration calculations check for $|r| < 10^{-8}$ and $|\text{scalar}| < 10^{-15}$.
 3. **Non-Finite Detection**: Every Runge-Kutta step evaluates `Vector3::isFinite()`. If NaN or infinite values occur, the ray is flagged with `RayStatus::NumericalFailure`.
-4. **Adaptive Curvature Stepping**: As rays approach strong curvature regions ($r \le 4M$), step sizes automatically scale down to resolve tight orbital loops without step underflow.
+4. **Adaptive Curvature Stepping**: As rays approach strong curvature regions ($r \le 4M$), step sizes automatically scale down to resolve tight orbital loops; in the weak field the step grows roughly proportionally to $r$, which keeps the long approach to the camera cheap without measurable loss of accuracy.
+
+> **Build note:** do not compile with `-ffast-math` (or MSVC `/fp:fast`). It implies finite-math-only, which lets the compiler fold `std::isfinite()` to `true` and silently turns the `NumericalFailure` guard above into dead code.

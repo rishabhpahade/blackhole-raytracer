@@ -7,9 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Compiler optimization and warning flags
 if(MSVC)
-    add_compile_options(/W4 /O2 /fp:fast)
+    add_compile_options(/W4 /O2 /fp:precise)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic -O3 -ffast-math)
+    # NOTE: do not add -ffast-math here. It implies -ffinite-math-only, which
+    # lets the compiler fold std::isfinite() to true and silently disables the
+    # RayStatus::NumericalFailure guard in GeodesicIntegrator.
+    add_compile_options(-Wall -Wextra -Wpedantic -O3 -fno-math-errno)
 endif()
 
 # Optional OpenMP for parallel rendering
