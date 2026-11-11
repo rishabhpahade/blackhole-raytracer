@@ -46,9 +46,12 @@ double GeodesicIntegrator::computeAdaptiveStepSize(double r) const noexcept {
         // Distance to horizon relative to characteristic radius 2M
         const double deltaR = std::max(0.01, (r - rh) / (2.0 * blackHole.mass));
         curvatureFactor = std::clamp(deltaR, 0.05, 1.0);
-    } else if (r > escapeRadius * 0.5) {
-        // In the asymptotic weak field, take larger steps
-        curvatureFactor = std::min(2.5, r / (escapeRadius * 0.5));
+    } else {
+        // Weak field: the local radius of curvature grows roughly like r, so a
+        // step proportional to r keeps accuracy while avoiding thousands of
+        // tiny steps on the long approach from the camera and the exit to the
+        // escape sphere.
+        curvatureFactor = std::max(1.0, 0.35 * r / blackHole.mass);
     }
 
     const double h = initialStepSize * curvatureFactor;

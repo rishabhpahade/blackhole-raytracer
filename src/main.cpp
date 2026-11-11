@@ -7,6 +7,11 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 int main(int argc, char* argv[]) {
     std::cout << "==========================================================\n";
@@ -17,7 +22,7 @@ int main(int argc, char* argv[]) {
     // Configurable rendering resolution
     int width = 1280;
     int height = 720;
-    int samplesPerPixel = 1;
+    int samplesPerPixel = 2;
 
     if (argc >= 3) {
         width = std::stoi(argv[1]);
@@ -45,17 +50,34 @@ int main(int argc, char* argv[]) {
               << " M (ISCO), r_out = " << disk.outerRadius << " M\n";
 
     // 3. Virtual Observer Camera
-    // Position observer at (0, 3.2, -26) to see dramatic gravitational lensing of the disk
-    const Vector3 camPos{0.0, 3.2, -26.0};
+    // The disk lies in the z = 0 plane, so the camera's |z| is its height above
+    // the disk and its in-plane radius is |x,y|. A small height relative to the
+    // in-plane distance gives the classic near-edge-on view where the far side
+    // of the disk is lensed up over the shadow. The previous default sat 26M
+    // above the plane with only 3.2M of in-plane offset — a nearly face-on
+    // view in which the disk filled ~77% of the frame.
+    const double inclinationDegrees = 15.0;
+    const double orbitRadius = 56.0;
+    const double inclinationRad = inclinationDegrees * (M_PI / 180.0);
+    const Vector3 camPos{
+        0.0,
+        orbitRadius * std::cos(inclinationRad),
+        orbitRadius * std::sin(inclinationRad)
+    };
     const Vector3 camTarget{0.0, 0.0, 0.0};
-    const Vector3 camUp{0.0, 1.0, 0.0};
-    const double fov = 42.0;
+    // The disk normal is +z, so +z is "up" in the image at a shallow
+    // inclination. Camera::updateBasis falls back to another axis if a caller
+    // passes an up vector parallel to the view direction.
+    const Vector3 camUp{0.0, 0.0, 1.0};
+    const double fov = 32.0;
 
     Camera camera(camPos, camTarget, camUp, fov, width, height, samplesPerPixel);
 
     // 4. Numerical Geodesic Integrator
     const double initialStep = 0.06;
-    const double escapeRadius = 60.0 * M;
+    // Keep the escape sphere well outside the camera so the asymptotic
+    // direction is sampled far from the observer.
+    const double escapeRadius = 120.0 * M;
     const int maxSteps = 15000;
     GeodesicIntegrator integrator(blackHole, disk, initialStep, escapeRadius, maxSteps);
 
@@ -65,7 +87,7 @@ int main(int argc, char* argv[]) {
 
     // 6. Execute rendering pipeline
     Renderer renderer(camera, integrator, BackgroundMode::ProceduralStarfield);
-    renderer.exposure = 1.1;
+    renderer.exposure = 0.18;
     renderer.enableToneMapping = true;
 
     std::cout << "\nStarting numerical simulation and deliverable generation...\n";

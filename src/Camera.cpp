@@ -23,7 +23,22 @@ Camera::Camera(const Vector3& pos, const Vector3& lookAt, const Vector3& worldUp
 
 void Camera::updateBasis() noexcept {
     forward = (target - position).normalized();
-    right = forward.cross(upVector).normalized();
+    if (forward.magnitudeSquared() < 1e-12) {
+        forward = {0.0, 0.0, 1.0};
+    }
+
+    // A degenerate reference up (zero length, or (anti)parallel to the view
+    // direction) would collapse the basis to all-zero vectors and make every
+    // pixel produce the same ray. Fall back to a different world axis.
+    Vector3 upRef = upVector.normalized();
+    if (upRef.magnitudeSquared() < 1e-12) {
+        upRef = {0.0, 1.0, 0.0};
+    }
+    if (std::abs(forward.dot(upRef)) > 0.9999) {
+        upRef = (std::abs(forward.z) < 0.9) ? Vector3{0.0, 0.0, 1.0} : Vector3{1.0, 0.0, 0.0};
+    }
+
+    right = forward.cross(upRef).normalized();
     up = right.cross(forward).normalized();
 
     const double fovRad = fovDegrees * (M_PI / 180.0);

@@ -9,10 +9,24 @@
 #include <cmath>
 #include <vector>
 #include <iomanip>
+#include <sstream>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+
+/**
+ * @brief Compact scientific formatting for assertion messages.
+ *
+ * std::to_string() prints a fixed six decimals, which rendered every RK4 error
+ * below 1e-6 as "0.000000" and made convergence failures impossible to read.
+ */
+static std::string scientific(double v) {
+    std::ostringstream oss;
+    oss << std::scientific << std::setprecision(3) << v;
+    return oss.str();
+}
 
 #define TEST_ASSERT(cond, msg) \
     do { \
@@ -168,9 +182,17 @@ int main() {
         const double errFine = (sFine.pos - sRef.pos).magnitude();
 
         TEST_ASSERT(errMedium < errCoarse * 0.15,
-                    "Medium error (" + std::to_string(errMedium) + ") < Coarse error (" + std::to_string(errCoarse) + ") * 0.15");
+                    "Medium error " + scientific(errMedium) + " < Coarse error " + scientific(errCoarse) + " * 0.15");
         TEST_ASSERT(errFine < errMedium * 0.15,
-                    "Fine error (" + std::to_string(errFine) + ") < Medium error (" + std::to_string(errMedium) + ") * 0.15");
+                    "Fine error " + scientific(errFine) + " < Medium error " + scientific(errMedium) + " * 0.15");
+
+        // Halving h should shrink the error by ~2^4 = 16 for a 4th-order scheme.
+        const double orderCoarseToMedium = std::log(errCoarse / errMedium) / std::log(2.0);
+        const double orderMediumToFine = std::log(errMedium / errFine) / std::log(2.0);
+        TEST_ASSERT(orderCoarseToMedium > 3.0 && orderCoarseToMedium < 5.0,
+                    "Observed convergence order (h=0.08 -> 0.04) = " + scientific(orderCoarseToMedium) + ", expected ~4");
+        TEST_ASSERT(orderMediumToFine > 3.0 && orderMediumToFine < 5.0,
+                    "Observed convergence order (h=0.04 -> 0.02) = " + scientific(orderMediumToFine) + ", expected ~4");
     }
 
     // ---------------------------------------------------------
@@ -190,6 +212,41 @@ int main() {
         TEST_ASSERT(rayDisk.diskHitRadius < 10.0 && rayDisk.diskHitRadius > 9.0,
                     "Gravitational bending pulls intersection inward to r = " + std::to_string(rayDisk.diskHitRadius) + " M");
         TEST_ASSERT(rayDisk.color.isFinite() && rayDisk.color.x > 0.0, "Disk emission color is finite and positive");
+    }
+
+    // ---------------------------------------------------------
+    // TEST 7: Critical Impact Parameter by Bisection
+    // ---------------------------------------------------------
+    std::cout << "\n--- Test 7: Critical Impact Parameter (bisection) ---\n";
+    {
+        GeodesicIntegrator integrator(bh, disk, 0.02, 200.0, 200000);
+        integrator.testAccretionDisk = false;
+
+        const auto isCaptured = [&](double b) {
+            Ray ray(Vector3{-b, 0.0, -200.0}, Vector3{0.0, 0.0, 1.0});
+            integrator.integrateRay(ray);
+            return ray.status == RayStatus::Captured;
+        };
+
+        // The capture threshold is monotonic in b, so bisection pins b_c far more
+        // tightly than bracketing it with two fixed probes 0.08 apart.
+        double lo = 4.0, hi = 7.0;
+        for (int i = 0; i < 60; ++i) {
+            const double mid = 0.5 * (lo + hi);
+            if (isCaptured(mid)) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        const double bNumerical = 0.5 * (lo + hi);
+        const double bTheory = bh.criticalImpactParameter();
+        const double relError = std::abs(bNumerical - bTheory) / bTheory;
+
+        TEST_ASSERT(relError < 1e-3,
+                    "Bisected b_c = " + scientific(bNumerical) + " vs theory 3*sqrt(3)M = "
+                    + scientific(bTheory) + " (relative error " + scientific(relError) + ")");
     }
 
     // ---------------------------------------------------------
