@@ -2,8 +2,8 @@
       SCHWARZSCHILD BLACK-HOLE RAY TRACER METRICS    
 =====================================================
 Image Resolution:          1280 x 720 (921600 rays)
-Render Execution Time:     11.089 seconds
-Ray Throughput:            83107 rays/sec
+Render Execution Time:     11.065 seconds
+Ray Throughput:            83292 rays/sec
 -----------------------------------------------------
 RAY CLASSIFICATION BREAKDOWN:
   * Captured (Shadow):     29566 (3.21%)
