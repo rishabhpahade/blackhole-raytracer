@@ -40,6 +40,15 @@ The radial temperature profile follows the standard thin-disk model:
 $$T(r) \propto r^{-3/4} \left(1 - \sqrt{\frac{r_{\text{in}}}{r}}\right)^{1/4}$$
 The emitted spectral energy is converted to RGB color via blackbody Planckian color grading.
 
+### Relativistic Beaming & Gravitational Redshift
+The disk image is not only lensed but also frequency-shifted. For matter on a circular Keplerian orbit the total shift $g = \nu_{\text{obs}} / \nu_{\text{em}}$ combines gravitational redshift with the orbital Doppler effect:
+
+$$g = \frac{\sqrt{1 - 2M/r}}{\gamma\left(1 - \boldsymbol{\beta}\cdot\hat{\mathbf{d}}\right)},\qquad \beta = \frac{\sqrt{M/r}}{\sqrt{1 - 2M/r}},\qquad \gamma = \frac{1}{\sqrt{1-\beta^2}}$$
+
+where $\hat{\mathbf{d}}$ is the photon's direction of travel toward the observer. A radially outgoing photon ($\boldsymbol{\beta}\cdot\hat{\mathbf{d}} = 0$) reduces to the standard $g = \sqrt{1 - 3M/r}$ for a circular orbit.
+
+Two effects follow. The observed effective temperature scales as $g T$, so the approaching side is bluer and the receding side redder. The bolometric intensity scales as $g^4$ (specific intensity $I_\nu/\nu^3$ is invariant), so the approaching side is dramatically brighter — at $r = 8M$ the two sides differ by a factor of $\sim 32$ in emitted intensity. This is what breaks the left/right symmetry of a real black hole image. Set `enableDopplerBeaming = false` to turn it off.
+
 ---
 
 ## 2. Software Architecture
@@ -107,7 +116,7 @@ cmake --build . --config Release
 ## 4. Running the Simulation
 
 ```bash
-# Run scientific validation tests (19 assertions)
+# Run scientific validation tests (25 assertions)
 ./validation_tests.exe
 
 # Run the renderer: <width> <height> <samples-per-pixel>
@@ -141,7 +150,7 @@ temperature gradient visible instead of clipping the whole disk to flat white;
 
 ## 5. Numerical Validation Results
 
-All 19 assertions in `tests/validation_tests.cpp` pass. Numbers below are from
+All 25 assertions in `tests/validation_tests.cpp` pass. Numbers below are from
 the test run itself, not from an earlier revision.
 
 | Test Case | Theoretical Value | Simulated Value | Status |
@@ -153,6 +162,10 @@ the test run itself, not from an earlier revision.
 | **Weak-Field Deflection ($b = 150M$)** | $\alpha = 0.027190\text{ rad}$ | $0.027163\text{ rad}$ ($0.10\%$ error) | **PASS** |
 | **Spacetime Reflection Symmetry** | $\Delta \alpha = 0$ | $\Delta \alpha < 10^{-10}\text{ rad}$ | **PASS** |
 | **RK4 Step-Size Convergence** | $\mathcal{O}(h^4)$, order $\approx 4$ | observed order $3.98$ and $3.55$ | **PASS** |
+| **Radial Redshift ($r = 10M$)** | $g = \sqrt{1-3M/r} = 0.836660$ | $0.836660$ (exact to $10^{-12}$) | **PASS** |
+| **Doppler Shift at ISCO (prograde)** | $g = 1.414214$ | $1.414214$ (exact to $10^{-12}$) | **PASS** |
+| **Doppler Shift at ISCO (retrograde)** | $g = 0.471405$ | $0.471405$ (exact to $10^{-12}$) | **PASS** |
+| **$g^4$ Beaming Contrast ($r = 8M$)** | approaching side $\sim 32\times$ brighter | $32.1\times$ | **PASS** |
 
 ---
 

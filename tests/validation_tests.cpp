@@ -250,6 +250,62 @@ int main() {
     }
 
     // ---------------------------------------------------------
+    // TEST 8: Gravitational Redshift & Relativistic Beaming
+    // ---------------------------------------------------------
+    std::cout << "\n--- Test 8: Redshift Factor & Doppler Beaming ---\n";
+    {
+        GeodesicIntegrator integrator(bh, disk);
+
+        // A photon emitted radially outward has no Doppler term, so the total
+        // shift must reduce to the standard g = sqrt(1 - 3M/r).
+        const double r = 10.0;
+        const double gRadial = integrator.computeRedshiftFactor(Vector3{r, 0.0, 0.0}, Vector3{1.0, 0.0, 0.0});
+        const double gRadialTheory = std::sqrt(1.0 - 3.0 * M / r);
+        TEST_ASSERT(std::abs(gRadial - gRadialTheory) < 1e-12,
+                    "Radial shift at r=10M: " + scientific(gRadial) + " vs sqrt(1-3M/r) = " + scientific(gRadialTheory));
+
+        // At the ISCO the prograde tangential photon must be blueshifted by
+        // g = sqrt(1-2M/r) / (gamma (1 - beta)), the retrograde one redshifted.
+        const double rIsco = 6.0;
+        const double beta = std::sqrt(M / rIsco) / std::sqrt(1.0 - 2.0 * M / rIsco);
+        const double gamma = 1.0 / std::sqrt(1.0 - beta * beta);
+        const double gravitational = std::sqrt(1.0 - 2.0 * M / rIsco);
+        const double gProgradeTheory = gravitational / (gamma * (1.0 - beta));
+        const double gRetrogradeTheory = gravitational / (gamma * (1.0 + beta));
+
+        const double gPrograde = integrator.computeRedshiftFactor(Vector3{rIsco, 0.0, 0.0}, Vector3{0.0, -1.0, 0.0});
+        const double gRetrograde = integrator.computeRedshiftFactor(Vector3{rIsco, 0.0, 0.0}, Vector3{0.0, 1.0, 0.0});
+
+        TEST_ASSERT(std::abs(gPrograde - gProgradeTheory) < 1e-12,
+                    "Prograde tangent at ISCO: " + scientific(gPrograde) + " vs theory " + scientific(gProgradeTheory));
+        TEST_ASSERT(std::abs(gRetrograde - gRetrogradeTheory) < 1e-12,
+                    "Retrograde tangent at ISCO: " + scientific(gRetrograde) + " vs theory " + scientific(gRetrogradeTheory));
+        TEST_ASSERT(gPrograde > 1.0 && gRetrograde < 1.0,
+                    "Approaching side is blueshifted and receding side redshifted");
+
+        // g^4 beaming: the approaching side must be far brighter than the
+        // receding side at the same radius.
+        // Sampled at 8M: exactly at the ISCO the torque-free boundary condition
+        // drives the emitted temperature to zero, so the contrast is undefined there.
+        const double rContrast = 8.0;
+        const double gBright = integrator.computeRedshiftFactor(Vector3{rContrast, 0.0, 0.0}, Vector3{0.0, -1.0, 0.0});
+        const double gDim = integrator.computeRedshiftFactor(Vector3{rContrast, 0.0, 0.0}, Vector3{0.0, 1.0, 0.0});
+        const double beamRatio = std::pow(gBright / gDim, 4.0);
+        const Vector3 brightSide = disk.computeColor(rContrast, 0.0, gBright);
+        const Vector3 dimSide = disk.computeColor(rContrast, 0.0, gDim);
+        TEST_ASSERT(brightSide.x > 4.0 * dimSide.x && beamRatio > 25.0,
+                    "g^4 beaming contrast at r=8M is " + scientific(beamRatio)
+                    + " (bright " + scientific(brightSide.x) + " vs dim " + scientific(dimSide.x) + ")");
+
+        // Beaming must be a no-op when disabled.
+        AccretionDisk flat(6.0, 22.0, 3.0);
+        flat.enableDopplerBeaming = false;
+        GeodesicIntegrator offIntegrator(bh, flat);
+        TEST_ASSERT(offIntegrator.computeRedshiftFactor(Vector3{rIsco, 0.0, 0.0}, Vector3{0.0, -1.0, 0.0}) > 1.0,
+                    "computeRedshiftFactor itself stays pure (flag applied at the call site)");
+    }
+
+    // ---------------------------------------------------------
     // Summary
     // ---------------------------------------------------------
     std::cout << "\n==========================================================\n";

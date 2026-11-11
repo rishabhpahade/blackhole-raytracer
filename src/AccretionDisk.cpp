@@ -74,7 +74,7 @@ Vector3 AccretionDisk::temperatureToRGB(double normalizedTemp) noexcept {
     return {r, g, b};
 }
 
-Vector3 AccretionDisk::computeColor(double r, double phi) const noexcept {
+Vector3 AccretionDisk::computeColor(double r, double phi, double g) const noexcept {
     if (!containsRadius(r)) {
         return {0.0, 0.0, 0.0};
     }
@@ -89,10 +89,17 @@ Vector3 AccretionDisk::computeColor(double r, double phi) const noexcept {
     const double spiralPattern = 0.85 + 0.15 * std::sin(4.0 * phi - 1.2 * std::log(r / innerRadius + 1.0));
     const double radialFade = 1.0 - std::pow((r - innerRadius) / (outerRadius - innerRadius), 2.0);
 
-    const double effectiveTemp = std::clamp(tempProfile * 1.5, 0.0, 1.0);
+    // Blueshifted gas radiates as if hotter, redshifted gas as if cooler.
+    const double shift = (g > 0.0 && std::isfinite(g)) ? g : 1.0;
+    const double effectiveTemp = std::clamp(tempProfile * 1.5 * shift, 0.0, 1.0);
     const Vector3 baseColor = temperatureToRGB(effectiveTemp);
 
-    const double emissionIntensity = peakIntensity * (tempProfile * 2.8 + 0.2) * spiralPattern * radialFade;
+    // Relativistic beaming: the bolometric intensity scales as g^4, so the
+    // approaching side of the disk is dramatically brighter than the receding
+    // side.
+    const double beaming = shift * shift * shift * shift;
+    const double emissionIntensity =
+        peakIntensity * (tempProfile * 2.8 + 0.2) * spiralPattern * radialFade * beaming;
 
     return baseColor * emissionIntensity;
 }

@@ -17,7 +17,7 @@ public:
     double innerRadius{6.0};  // ISCO for Schwarzschild M=1 is 6M
     double outerRadius{20.0}; // Outer disk extent
     double peakIntensity{2.5};
-    bool enableDopplerBeaming{false}; // For non-rotating Schwarzschild, disk orbital velocity can be Keplerian
+    bool enableDopplerBeaming{true};  // Apply gravitational redshift + relativistic Doppler shift (g^4 beaming)
 
     constexpr AccretionDisk() noexcept = default;
     constexpr AccretionDisk(double rInner, double rOuter, double intensity = 2.5) noexcept
@@ -42,12 +42,19 @@ public:
                                          Vector3& outIntersectionPoint, double& outRadius) const noexcept;
 
     /**
-     * @brief Computes radiated linear RGB color based on radial temperature model T(r) ∝ r^(-3/4).
+     * @brief Computes the observed linear RGB of the disk at a hit point.
+     *
+     * The emitted spectrum follows the thin-disk temperature profile; the
+     * observed one is shifted by the total frequency ratio g (gravitational
+     * redshift plus orbital Doppler), which rescales the effective temperature
+     * by g and the bolometric intensity by g^4 (I_nu / nu^3 is invariant).
+     *
      * @param r Radial distance from black hole center
      * @param phi Azimuthal angle around disk
+     * @param g Observed/emitted frequency ratio (1.0 disables the shift)
      * @return Linear RGB color (can exceed 1.0 before tone mapping)
      */
-    [[nodiscard]] Vector3 computeColor(double r, double phi = 0.0) const noexcept;
+    [[nodiscard]] Vector3 computeColor(double r, double phi = 0.0, double g = 1.0) const noexcept;
 
     /**
      * @brief Converts blackbody / thermal temperature to RGB color representation.
